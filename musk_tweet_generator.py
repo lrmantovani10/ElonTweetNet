@@ -18,10 +18,12 @@ dropout = 0.2
 # File to write the model logs
 logs_filename = "log.txt"
 
+
 # Function to write to the log file
-def write_to_log(logs_filename, text):
+def write_to_log(text):
     with open(logs_filename, "a") as f:
         f.write(text + "\n")
+
 
 # Data source: https://www.kaggle.com/datasets/gpreda/elon-musk-tweets
 # Extracting the data
@@ -85,21 +87,18 @@ decoder = lambda encoded_text: "".join([int_to_char[i] for i in encoded_text])
 raw_tweets = " ".join(tweets)
 torch_encoded = torch.tensor(encoder(raw_tweets), dtype=torch.int64)
 
-# Train / val / test split
+# Train / val split
 train_size = int(torch_encoded.shape[0] * 0.8)
-val_size = int(torch_encoded.shape[0] * 0.1)
-test_size = torch_encoded.shape[0] - train_size - val_size
+val_size = torch_encoded.shape[0] - train_size
 
-# Generating training, validation, and test sets
+# Generating training and validation sets
 train_set = torch_encoded[:train_size]
 val_set = torch_encoded[train_size : train_size + val_size]
-test_set = torch_encoded[train_size + val_size :]
 
 # Fit the data to the device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 train_set = train_set.to(device)
 val_set = val_set.to(device)
-test_set = test_set.to(device)
 
 
 def generate_batch(source):
@@ -108,8 +107,6 @@ def generate_batch(source):
         dataset = train_set
     elif source == "val":
         dataset = val_set
-    else:
-        dataset = test_set
 
     random_characters = torch.randint(len(dataset) - seq_len, (batch_size,))
     contexts = torch.stack([dataset[i : i + seq_len] for i in random_characters])
@@ -124,7 +121,7 @@ def calculate_loss():
     model.eval()
 
     # Calculate the loss for the training and validation sets
-    for dataset_type in ["training", "validation"]:
+    for dataset_type in ["train", "val"]:
         accumulated_losses = torch.zeros(eval_iters)
         for iteration_index in range(eval_iters):
             features, targets = generate_batch(dataset_type)
@@ -261,9 +258,9 @@ class TransformerBlock(nn.Module):
         normalized = self.layer_norm(x)
         # Notice the residual connections that help solve the
         # vanishing gradient problem
-        x += self.self_attention(normalized)
+        x = x + self.self_attention(normalized)
         normalized = self.layer_norm(x)
-        x += self.ffwd(normalized)
+        x = x + self.ffwd(normalized)
         return x
 
 
@@ -272,8 +269,8 @@ class BigramLM(nn.Module):
     def __init__(self):
         super().__init__()
         # each token directly reads off the logits for the next token from a lookup table
-        self.token_embedding_table = nn.Embedding(seq_len, num_embed)
-        self.position_embedding_table = nn.Embedding(seq_len, num_embed)
+        self.token_embedding_table = nn.Embedding(num_chars, num_embed)
+        self.position_embedding_table = nn.Embedding(num_chars, num_embed)
         block_sequence = [
             TransformerBlock(num_embed, num_head=num_head) for _ in range(layers_num)
         ]
@@ -296,16 +293,15 @@ class BigramLM(nn.Module):
             loss (torch.Tensor, optional): The cross entropy loss between the logits and the targets, if targets were provided. Defaults to None.
         """
 
-        # Get the dimensions of the indexes tensor
-        batch_size, seq_length = indexes.shape
-
+        # Shape of the input tensor
+        batch_size, seq_len_curr = indexes.shape
         # Transform the indexes of the input tokens into embeddings
         token_embeddings = self.token_embedding_table(
             indexes
         )  # Shape: (batch_size, seq_length, embedding_dim)
 
         # Generate a sequence of position indexes and transform them into position embeddings
-        position_indexes = torch.arange(seq_length, device=device)
+        position_indexes = torch.arange(seq_len_curr, device=device)
         position_embeddings = self.position_embedding_table(
             position_indexes
         )  # Shape: (seq_length, embedding_dim)
@@ -332,10 +328,12 @@ class BigramLM(nn.Module):
 
         # If targets are provided, compute the loss; otherwise, set it to None
         loss = None
+        # Get the dimensions of the logits tensor
+        batch_size, seq_len_curr, _ = logits.shape
         if targets is not None:
             # Flatten the logits and targets tensors for the loss computation
-            flattened_logits = logits.view(batch_size * seq_length, -1)
-            flattened_targets = targets.view(batch_size * seq_length)
+            flattened_logits = logits.view(batch_size * seq_len_curr, -1)
+            flattened_targets = targets.view(batch_size * seq_len_curr)
 
             # Compute the cross entropy loss between the logits and the targets
             loss = PyFun.cross_entropy(flattened_logits, flattened_targets)
@@ -384,7 +382,9 @@ def train_model(model, optimizer, max_iterations, eval_interval):
         # At each eval_interval, or at the final iteration, compute and display the training and validation losses
         if iteration % eval_interval == 0 or iteration == max_iterations - 1:
             losses = calculate_loss()
-            write_to_log(f"Iteration {iteration}: Training loss {losses['train']:.5f}")
+            write_to_log(
+                str(f"Iteration {iteration}: Training loss {losses['train']:.5f}")
+            )
 
         # Generate a batch of training data
         input_batch, target_batch = generate_batch("train")
