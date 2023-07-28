@@ -2,6 +2,11 @@
 
 ElonTweetNet is a minimalist and easy-to-use implementation of a simplified Transformer architecture, tailored for generating short tweets mimicking Elon Musk's unique style. The model seeks to illustrate the underlying principles behind the transformer architecture with an intriguing dataset.
 
+## Files
+* elon_musk_tweets.csv - the dataset of tweets
+* musk_tweet_generator.py - the Python code for the model's generation and training + validation
+* log.txt - the log of the model's training process when executing on Azure ML Cloud
+
 ## Model Architecture
 
 The model is based on the Transformer architecture, as described in the paper ["Attention is All You Need"](https://arxiv.org/abs/1706.03762) by Vaswani et al. The Transformer model is a type of neural network architecture that relies solely on self-attention mechanisms and dispenses with recurrence and convolutions entirely.

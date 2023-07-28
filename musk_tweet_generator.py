@@ -7,7 +7,7 @@ from torch.nn import functional as PyFun
 batch_size = 16
 lr = 0.001
 seq_len = 32
-max_iterations = 5000
+max_iterations = 10000
 eval_interval = 50
 eval_iters = 200
 num_embed = 64
@@ -85,7 +85,7 @@ decoder = lambda encoded_text: "".join([int_to_char[i] for i in encoded_text])
 # text using a torch tensor
 # Tranform the tweets into a single string
 raw_tweets = " ".join(tweets)
-torch_encoded = torch.tensor(encoder(raw_tweets), dtype=torch.int64)
+torch_encoded = torch.tensor(encoder(raw_tweets), dtype=torch.long)
 
 # Train / val split
 train_size = int(torch_encoded.shape[0] * 0.8)
@@ -341,22 +341,46 @@ class BigramLM(nn.Module):
         # Return the logits and the loss
         return logits, loss
 
-    def generate(self, idx, max_new_tokens):
-        # idx is (B, T) array of indices in the current context
+    # Generate new tokens given a context
+    def generate(self, context, max_new_tokens):
+        """
+        Generate new tokens given a context.
+
+        Args:
+            context (torch.Tensor): A tensor containing the indices of the tokens in the current context. Shape: (batch_size, sequence_length)
+            max_new_tokens (int): The number of new tokens to generate.
+
+        Returns:
+            context (torch.Tensor): A tensor containing the original context followed by the generated tokens. Shape: (batch_size, sequence_length + max_new_tokens)
+        """
+        # Loop over the specified number of new tokens to generate
         for _ in range(max_new_tokens):
-            # crop idx to the last seq_len tokens
-            idx_cond = idx[:, -seq_len:]
-            # get the predictions
-            logits, _ = self(idx_cond)
-            # focus only on the last time step
-            logits = logits[:, -1, :]  # becomes (B, C)
-            # apply softmax to get probabilities
-            probs = PyFun.softmax(logits, dim=-1)  # (B, C)
-            # sample from the distribution
-            idx_next = torch.multinomial(probs, num_samples=1)  # (B, 1)
-            # append sampled index to the running sequence
-            idx = torch.cat((idx, idx_next), dim=1)  # (B, T+1)
-        return idx
+            # Crop the context to include only the last seq_len tokens
+            recent_context = context[:, -seq_len:]
+
+            # Compute the model's predictions for the recent context
+            logits, _ = self(recent_context)
+
+            # Select only the logits for the last token in the sequence
+            last_logits = logits[:, -1, :]  # Shape: (batch_size, num_classes)
+
+            # Apply softmax to the logits to get a probability distribution
+            probabilities = PyFun.softmax(
+                last_logits, dim=-1
+            )  # Shape: (batch_size, num_classes)
+
+            # Sample a token from the probability distribution
+            new_token = torch.multinomial(
+                probabilities, num_samples=1
+            )  # Shape: (batch_size, 1)
+
+            # Append the new token to the context
+            context = torch.cat(
+                (context, new_token), dim=1
+            )  # Shape: (batch_size, sequence_length + 1)
+
+        # Return the context, now including the generated tokens
+        return context
 
 
 # Generate the model
@@ -422,5 +446,5 @@ train_model(model, optimizer, max_iterations, eval_interval)
 validate_model(model)
 
 # example model output
-context = torch.zeros((1, 1), dtype=torch.long, device=device)
+context = torch.zeros((1, seq_len), dtype=torch.long, device=device)
 write_to_log(decoder(model.generate(context, max_new_tokens=200)[0].tolist()))
