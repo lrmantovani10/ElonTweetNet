@@ -15,6 +15,14 @@ num_head = 4
 layers_num = 6
 dropout = 0.2
 
+# File to write the model logs
+logs_filename = "log.txt"
+
+# Function to write to the log file
+def write_to_log(logs_filename, text):
+    with open(logs_filename, "a") as f:
+        f.write(text + "\n")
+
 # Data source: https://www.kaggle.com/datasets/gpreda/elon-musk-tweets
 # Extracting the data
 file_path = "elon_musk_tweets.csv"
@@ -376,7 +384,7 @@ def train_model(model, optimizer, max_iterations, eval_interval):
         # At each eval_interval, or at the final iteration, compute and display the training and validation losses
         if iteration % eval_interval == 0 or iteration == max_iterations - 1:
             losses = calculate_loss()
-            print(f"Iteration {iteration}: Training loss {losses['train']:.5f}")
+            write_to_log(f"Iteration {iteration}: Training loss {losses['train']:.5f}")
 
         # Generate a batch of training data
         input_batch, target_batch = generate_batch("train")
@@ -404,7 +412,7 @@ def validate_model(model):
         model: The model to be evaluated.
     """
     losses = calculate_loss()
-    print(f"Validation loss {losses['val']:.5f}")
+    write_to_log(f"Validation loss {losses['val']:.5f}")
 
 
 # Train the model
@@ -415,4 +423,4 @@ validate_model(model)
 
 # example model output
 context = torch.zeros((1, 1), dtype=torch.long, device=device)
-print(decoder(model.generate(context, max_new_tokens=200)[0].tolist()))
+write_to_log(decoder(model.generate(context, max_new_tokens=200)[0].tolist()))
