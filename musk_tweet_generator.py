@@ -199,20 +199,22 @@ class HeadAttention(nn.Module):
         self.register_buffer("tril", torch.tril(torch.ones(seq_len, seq_len)))
 
     # Function to process the weights
-    def weight_processing(self, weight):
-        weight = weight.masked_fill(self.tril[:, :] == 0, float("-inf"))
+    def weight_processing(self, weight, seq_len_curr):
+        weight = weight.masked_fill(
+            self.tril[:seq_len_curr, :seq_len_curr] == 0, float("-inf")
+        )
         weight = PyFun.softmax(weight, dim=-1)
         weight = self.dropout(weight)
         return weight
 
     # Forward pass through the self attention head
     def forward(self, x):
-        num_channels = x.shape[-1]
+        _, seq_len_curr, num_channels = x.shape
         k = self.key(x)
         q = self.query(x)
         # calculate the weights as specified in the self-attention paper
         w = q @ k.transpose(-2, -1) * num_channels**-0.5
-        w = self.weight_processing(w)
+        w = self.weight_processing(w, seq_len_curr)
         v = self.value(x)
         # multiply the weigths by the value
         out = w @ v
@@ -446,5 +448,5 @@ train_model(model, optimizer, max_iterations, eval_interval)
 validate_model(model)
 
 # example model output
-context = torch.zeros((1, seq_len), dtype=torch.long, device=device)
+context = torch.zeros((1, 1), dtype=torch.long, device=device)
 write_to_log(decoder(model.generate(context, max_new_tokens=200)[0].tolist()))
