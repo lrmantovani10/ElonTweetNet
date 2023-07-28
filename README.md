@@ -5,7 +5,7 @@ ElonTweetNet is a minimalist and easy-to-use implementation of a simplified Tran
 ## Files
 * elon_musk_tweets.csv - the dataset of tweets
 * musk_tweet_generator.py - the Python code for the model's generation and training + validation
-* log.txt - the log of the model's training process when executing on Azure ML Cloud
+* log.txt - the log of the model's training and validation process (mine was run on Azure Cloud ML)
 
 ## Model Architecture
 
