@@ -24,5 +24,3 @@ The model is trained on the [Elon Musk Tweet dataset](https://www.kaggle.com/dat
 ## Inspiration
 
 This project is inspired by Andrej Karpathy's implementation of character-level language models, as explained in his [lecture](https://www.youtube.com/watch?v=kCc8FmEb1nY&t=6052s).
-
-![Real Musk Tweet](<Elon_tweet.jpg>)
